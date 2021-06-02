@@ -35,6 +35,24 @@ group = aws.ec2.SecurityGroup('web-secgrp',
 	)],
 )
 
+cg = aws.ec2.SecurityGroup('container-secgrp',
+	vpc_id=default_vpc.id,
+	description='Enable HTTP access',
+	ingress=[aws.ec2.SecurityGroupIngressArgs(
+		protocol='tcp',
+		from_port=8888,
+		to_port=8888,
+		cidr_blocks=['0.0.0.0/0'],
+	)],
+  	egress=[aws.ec2.SecurityGroupEgressArgs(
+		protocol='-1',
+		from_port=0,
+		to_port=0,
+		cidr_blocks=['0.0.0.0/0'],
+	)],
+)
+
+
 # Create a load balancer to listen for HTTP traffic on port 80.
 alb = aws.lb.LoadBalancer('app-lb',
 	security_groups=[group.id],
@@ -109,9 +127,10 @@ jupyter_task_definition = aws.ecs.TaskDefinition("jupyterTaskDefinition",
     memory=512,
     execution_role_arn=role.arn,
     container_definitions=json.dumps([{
-        "entryPoint": ["start-notebook.sh","--NotebookApp.token=abcd1234efgh5678"],
+        # "entryPoint": ["start-notebook.sh","--NotebookApp.token=abcd1234efgh5678"],
         # "essential": True,
-        "image": "public.ecr.aws/z3f3a5s9/jupyterhub/datascience-notebook:latest",
+		"image": "registry.hub.docker.com/spara/nginx-test:latest",
+        # "image": "public.ecr.aws/z3f3a5s9/jupyterhub/datascience-notebook:latest",
         "name": "jupyter",
         "portMappings": [
             {
@@ -157,7 +176,7 @@ jupyter_service = aws.ecs.Service("jupyterService",
     launch_type="FARGATE",
     network_configuration={
         "subnets": default_vpc_subnets.ids,
-        "security_groups": [group.id],
+        "security_groups": [group.id, cg.id],
     },
     load_balancers=[{
         "target_group_arn": atg.arn,
